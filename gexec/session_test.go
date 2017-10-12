@@ -1,6 +1,8 @@
 package gexec_test
 
 import (
+	"io"
+	"io/ioutil"
 	"os/exec"
 	"syscall"
 	"time"
@@ -16,7 +18,7 @@ var _ = Describe("Session", func() {
 	var command *exec.Cmd
 	var session *Session
 
-	var outWriter, errWriter *Buffer
+	var outWriter, errWriter io.Writer
 
 	BeforeEach(func() {
 		outWriter = nil
@@ -323,22 +325,40 @@ var _ = Describe("Session", func() {
 	})
 
 	Context("when wrapping out and err", func() {
+		var (
+			outBuffer *Buffer
+			errBuffer *Buffer
+		)
+
 		BeforeEach(func() {
-			outWriter = NewBuffer()
-			errWriter = NewBuffer()
+			outBuffer = NewBuffer()
+			errBuffer = NewBuffer()
+			outWriter = outBuffer
+			errWriter = errBuffer
 		})
 
 		It("should route to both the provided writers and the gbytes buffers", func() {
 			Eventually(session.Out).Should(Say("We've done the impossible, and that makes us mighty"))
 			Eventually(session.Err).Should(Say("Ah, curse your sudden but inevitable betrayal!"))
 
-			Ω(outWriter.Contents()).Should(ContainSubstring("We've done the impossible, and that makes us mighty"))
-			Ω(errWriter.Contents()).Should(ContainSubstring("Ah, curse your sudden but inevitable betrayal!"))
+			Ω(outBuffer.Contents()).Should(ContainSubstring("We've done the impossible, and that makes us mighty"))
+			Ω(errBuffer.Contents()).Should(ContainSubstring("Ah, curse your sudden but inevitable betrayal!"))
 
 			Eventually(session).Should(Exit())
 
-			Ω(outWriter.Contents()).Should(Equal(session.Out.Contents()))
-			Ω(errWriter.Contents()).Should(Equal(session.Err.Contents()))
+			Ω(outBuffer.Contents()).Should(Equal(session.Out.Contents()))
+			Ω(errBuffer.Contents()).Should(Equal(session.Err.Contents()))
+		})
+
+		Context("when discarding the output of the command", func() {
+			BeforeEach(func() {
+				outWriter = ioutil.Discard
+				errWriter = ioutil.Discard
+			})
+
+			It("executes succesfuly", func() {
+				Eventually(session).Should(Exit())
+			})
 		})
 	})
 
